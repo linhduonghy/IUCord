@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+    <head>  
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <title>Login</title>
+        <!-- Latest compiled and minified CSS -->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
+        <!-- jQuery library -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+        <!-- Popper JS -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+
+        <!-- Latest compiled JavaScript -->
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    </head>
+    <body>
+
+        <div class="container">
+            <div class="row">
+                <div class="col-sm-9 col-md-7 col-lg-5 mx-auto">
+                    <div class="card card-signin my-5">
+                        <div class="card-body">
+                            <h5 class="card-title text-center">Sign In</h5>
+                            <form action="login" method="post">
+                                <div class="form-group">
+                                    <input type="text" name="username" class="form-control" placeholder="Username" required>                                    
+                                </div>
+                                <div class="form-group">
+                                    <input type="password"  name="password" class="form-control" placeholder="Password" required>                                    
+                                </div>                               
+                                <button class="btn btn-lg btn-primary btn-block text-uppercase" type="submit">Sign in</button>
+
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script type="text/javascript">
+
+            var wsocket;
+
+            function connect() {
+
+                wsocket = new WebSocket("ws://localhost/test");
+                wsocket.onopen = onopen;
+                wsocket.onmessage = onmessage;
+                wsocket.onclose = onclose;
+            }
+
+            function onopen() {
+                console.log("Connected!");
+                wsocket.send('hello from client');
+            }
+
+            function onmessage(event) {
+                console.log("Data received: " + event.data);
+            }
+
+            function onclose(e) {
+                console.log("Connection closed.");
+            }
+
+            window.addEventListener("load", connect, false);
+
+        </script>
+    </body>
+
+</html>

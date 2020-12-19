@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <title>Home</title>
+        <!-- Bootstrap CSS -->
+        <!-- Latest compiled and minified CSS -->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
+        <!-- jQuery library -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+        <!-- Popper JS -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+
+        <!-- Latest compiled JavaScript -->
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+        <style>
+            body {
+                background-image: url("https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQUh9u104ViUb4YRgFPiimwJVbGh2o36cahSw&usqp=CAU");
+            }
+            .chat-box {
+                text-align: left;
+                margin-bottom: 10px;
+                padding: 10px;
+                background: #fff;
+                height: 300px;
+                width: 100%;
+                border: 1px solid #ACD8F0;
+                overflow: auto;
+            }
+            .message-row {
+                margin-top: 3px;
+            }
+            .message-user {
+                font-style: italic;
+                font-weight: bold;
+            }
+            .message-text {
+                margin-left: 5px;
+            }
+            .member-group {
+                font-size: 16px;
+            }
+            img {
+                width: 100%;
+                height: 100%;
+            }
+            #leaveAudio{
+                margin-left: 20px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container-fluid my-5">
+            <h2 id="userName"></h2>
+
+            <div class="row">
+                <div class="col-3" id="btnJoinRoom">
+
+                </div>
+
+                <div class="col-9" id="rooms">
+
+                </div>
+            </div>
+        </div>               
+        <!-- get information user when load home.html?id=..-->
+        <script>
+            // get id from url
+            var queryString = window.location.search;
+            var urlParams = new URLSearchParams(queryString);
+            var user_id = urlParams.get('user_id');
+            // delete chat history            
+            var rooms = null;
+            var user = null;
+            // get user infor, rooms
+            $.getJSON("http://192.168.43.216:8080/user?id=" + user_id, function (data) {
+                user = data[0];
+                $("#userName").html(user.name);
+                rooms = data[1];
+                for (var room of rooms) {
+                    $("#btnJoinRoom").append(`<button class="btn btn-success d-block mt-3" onclick="joinRoom(${room.id})">${room.name}</button>`)
+                    $('#rooms').append(`<div class="row" id="room${room.id}" style="display: none"></div>`);
+                    $(`#room${room.id}`).append(
+                            `<div class="col-6">` +
+                            `<h3><button class="btn btn-info" id="roomName${room.id}"></button>` +
+                            `</h3>` +
+                            `<div class="chat-box" id="chatBox${room.id}">` +
+                            `</div>` +
+                            `<div>` +
+                            `<span>Enter message</span> <br>` +
+                            `<input class="form-control" id="messageText${room.id}" type="text" onkeyup="EnterMessageKeyUp(event)"> <br>` +
+                            `</div>` +
+                            `</div>`
+                            );
+                    $(`#room${room.id}`).append(
+                            `<div class="col-3" id="audio_room_${room.id}">` +
+                            `<button onclick="joinAudio(${room.id})" class="btn btn-success">Join Audio</button>` +
+                            `</div>`
+                            );
+                    $(`#room${room.id}`).append(
+                            `<div class="col-3">` +
+                            `<div class="member-group">` +
+                            `<span aria-hidden="true" id="onlineMember${room.id}">Online—1</span>` +
+                            `</div>` +
+                            `<div id="onlineUser${room.id}">` +
+                            `</div>` +
+                            `<div class="member-group" style="margin-top: 20px;">` +
+                            `<span aria-hidden="true" id="offlineMember${room.id}">Offline—6</span>` +
+                            `</div>` +
+                            `<div id="offlineUser${room.id}">` +
+                            `</div>` +
+                            `</div>`
+                            );
+                }
+
+            });
+        </script>
+
+        <!-- chat -->
+        <script>
+
+            var chatWs = new WebSocket("ws://192.168.43.216:8086");
+            var message;
+            var room_id = -1;
+            var room = null;
+            // user login, send message login to server
+            chatWs.onopen = function () {
+                var message = {room_id: room_id, user_id: user_id, text: 'login'};
+                chatWs.send(JSON.stringify(message));
+            }
+            chatWs.onmessage = function (e) {
+                var response = JSON.parse(e.data);
+                // when user send message, update chat box
+                if (response.hasOwnProperty('message')) {
+                    var message = response.message;
+                    $(`#chatBox${message.room_id}`)
+                            .append(
+                                    `<div class='message-row'>` +
+                                    `<span class='message-user'>${message.user.name} :</span>` +
+                                    `<span class='message-text'>${message.text}</span>` +
+                                    `</div>`
+                                    );
+                }
+                // message about online status
+                // update online status in rooms of user
+                if (response.hasOwnProperty('onlineStatus')) {
+                    var onlineStatus = response.onlineStatus;
+                    for (var r_id in onlineStatus) {
+                        $(`#onlineMember${r_id}`).html('Online-' + onlineStatus[r_id].length);
+                        $(`#onlineUser${r_id}`).html('');
+                        for (var onlineUser of onlineStatus[r_id]) {
+                            $(`#onlineUser${r_id}`).append(`<span style="color: rgb(51, 184, 190);" >${onlineUser.name}</span> </br>`);
+                        }
+                    }
+                }
+                // update offline status in rooms of user
+                if (response.hasOwnProperty('offlineStatus')) {
+                    var offlineStatus = response.offlineStatus;
+                    for (var r_id in offlineStatus) {
+                        $(`#offlineMember${r_id}`).html('Offline-' + offlineStatus[r_id].length);
+                        $(`#offlineUser${r_id}`).html('');
+                        for (var offlineUser of offlineStatus[r_id]) {
+                            $(`#offlineUser${r_id}`).append(`<span style="color: #b3b3b3" >${offlineUser.name}</span> </br>`);
+                        }
+                    }
+                }
+            };
+            // join room when user click a room
+            function joinRoom(r_id) {
+                room_id = r_id;
+                // show only room join
+                for (var room of rooms) {
+                    if (room.id === r_id) {
+                        // show room join
+                        $(`#room${r_id}`).show();
+                        $(`#roomName${r_id}`).html(room.name);
+                    } else {
+                        $(`#room${room.id}`).hide();
+                    }
+                }
+            }
+            // user click enter when type message
+            function EnterMessageKeyUp(e) {
+                if (e.keyCode === 13) {
+                    sendMessage($(`#messageText${room_id}`).val());
+                    $(`#messageText${room_id}`).val('');
+                }
+            }
+            // send message
+            function sendMessage(text) {
+                var message = {
+                    room_id: room_id,
+                    user_id: user_id,
+                    text: text
+                };
+                // send message to server                
+                chatWs.send(JSON.stringify(message));
+            }
+        </script>
+
+        <!-- audio handle -->
+        <script>
+            var peerConnection;
+            var audioWs;
+            var fromUserId;
+            var fromUserName;
+            var localStream;
+            var room_audio;
+            function joinAudio(r_id) {
+                if (peerConnection || audioWs) {
+                    leaveAudio();
+                }
+                room_audio = r_id;
+
+                $(`#audio_room_${r_id}`).append(
+                        `<div class="row mt-4">` +
+                        `<h5>You</h5>` +
+                        `<audio id="localAudio"controls autoplay volume="true" muted></audio>` +
+                        `</div>` +
+                        `<div class="row">` +
+                        `<div class="col" id="remoteUser">` +
+                        `</div>` +
+                        `<div class="row mt-5"><button class="btn btn-danger" id="leaveAudio" ` +
+                        `onclick="leaveAudio()">Leave Audio</button></div>` +
+                        `</div>`
+                        );
+
+                // init websocket
+                audioWs = new WebSocket("ws://192.168.43.216:8088");
+                audioWs.onmessage = handleAudioMessage;
+                audioWs.onopen = initAudioWs;
+            }
+
+            function leaveAudio() {
+                console.log("end call");
+                //stopAudio(localStream);
+                sendAudioMessage(null);
+                resetAudioRooms();
+            }
+            function resetAudioRooms() {
+                for (var room of rooms) {
+                    $(`#audio_room_${room.id} div`).remove();
+                }
+            }
+            function sendAudioMessage(signal) {
+                var message = {
+                    room_id: room_id,
+                    fromUserId: user.id,
+                    fromUserName: user.name,
+                    toUserId: -1,
+                    signal: signal
+                };
+                audioWs.send(JSON.stringify(message));
+            }
+            function initAudioWs() {
+                preparePeerConnection();
+                displayLocalStreamAndSignal(true);
+            }
+            function handleAudioMessage(msg) {
+                var message = JSON.parse(msg.data);
+                console.log(message);
+
+                if (message.disconnect) {
+                    var user_disconnect = message.disconnect;
+                    removeUserFromRoom(user_disconnect);
+                } else {
+                    fromUserId = message.fromUserId;
+                    fromUserName = message.fromUserName;
+                    var signal = message.signal;
+
+                    if (signal.type) {
+                        switch (signal.type) {
+                            case "offer":
+                                handleOffer(signal);
+                                break;
+                            case "answer":
+                                handleAnswer(signal);
+                                break;
+                                // In local network, ICE candidates might not be generated.
+                            case "candidate":
+                                handleCandidate(signal);
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                }
+
+            }
+            async function displayLocalStreamAndSignal(firstTime) {
+                console.log('Requesting local stream');
+                const localAudio = document.getElementById('localAudio');
+                try {
+                    // Capture local video & audio stream & set to local <video> DOM
+                    // element
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        audio: true,
+                        video: false
+                    });
+
+                    console.log('Received local stream');
+                    localAudio.srcObject = stream;
+                    localStream = stream;
+
+                    // For first time, add local stream to peer connection.
+                    if (firstTime) {
+                        setTimeout(
+                                function () {
+                                    addLocalStreamToPeerConnection(localStream);
+                                }, 2000);
+                    }
+
+                    // Send offer signal to signaling server endpoint.
+                    sendOfferSignal();
+
+                } catch (e) {
+                    alert(`getUserMedia() error: ${e.name}`);
+                    throw e;
+                }
+                console.log('Start complete');
+            }
+            async function addLocalStreamToPeerConnection(localStream) {
+                console.log('Starting addLocalStreamToPeerConnection');
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                console.log('localStream tracks added');
+            }
+            function displayRemoteStream(event) {
+                $('#remoteUser').
+                        append(
+                                `<div class="row">` +
+                                `<h5>${fromUserName}</h5>` +
+                                `<audio class="remote-audio" id="audio${fromUserId}" controls autoplay volume="true"></audio>` +
+                                `</div>`);
+                var remoteAudio = document.getElementById(`audio${fromUserId}`);
+                remoteAudio.srcObject = event.streams[0];
+            }
+            function removeUserFromRoom(user_id) {
+                $('#remoteUser').html('');
+                closeAudioCall();
+            }
+            function preparePeerConnection() {
+                // Using free public google STUN server.
+                const configuration = {
+                    iceServers: [{
+                            urls: 'stun:stun.l.google.com:19302'
+                        }]
+                }
+                // Prepare peer connection object
+                peerConnection = new RTCPeerConnection(configuration);
+                peerConnection.onnegotiationneeded = async () => {
+                    console.log('onnegotiationneeded');
+                    sendOfferSignal();
+                };
+                peerConnection.onicecandidate = function (event) {
+                    if (event.candidate) {
+                        sendAudioMessage(event);
+                    }
+                }
+                // user joined, add stream to remote stream
+                peerConnection.addEventListener('track', displayRemoteStream);
+
+                peerConnection.onremovetrack = handleRemoveTrackEvent;
+                peerConnection.oniceconnectionstatechange = handleICEConnectionStateChangeEvent;
+                peerConnection.onsignalingstatechange = handleSignalingStateChangeEvent;
+            }
+
+            function sendOfferSignal() {
+                peerConnection.createOffer(function (offer) {
+                    sendAudioMessage(offer);
+                    peerConnection.setLocalDescription(offer);
+                }, function (error) {
+                    alert("Error creating an offer");
+                })
+            }
+            /*
+             * Handle the offer sent by other participant & send back answer to complete the
+             * handshake.
+             */
+            function handleOffer(offer) {
+                peerConnection
+                        .setRemoteDescription(new RTCSessionDescription(offer));
+
+                // create and send an answer to an offer
+                peerConnection.createAnswer(function (answer) {
+                    peerConnection.setLocalDescription(answer);
+                    sendAudioMessage(answer);
+                }, function (error) {
+                    alert("Error creating an answer");
+                })
+            }
+            /*
+             * Finish the handshake by receiving the answer. Now Peer-to-peer connection is
+             * established between my browser & other participant's browser. Since both
+             * participants are tracking each others stream, they both will be able to view &
+             * hear each other.
+             */
+            function handleAnswer(answer) {
+                peerConnection.setRemoteDescription(new RTCSessionDescription(
+                        answer));
+                console.log("connection established successfully!!");
+            }
+            /*
+             * Add received ICE candidate to connection. ICE candidate has information about
+             * how to connect to remote participant's browser. In local LAN connection, ICE
+             * candidate might not be generated.
+             */
+            function handleCandidate(candidate) {
+                alert("handleCandidate");
+                peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+
+            function handleRemoveTrackEvent(event) {
+
+                closeAudioCall();
+
+            }
+            function handleICEConnectionStateChangeEvent(event) {
+                switch (peerConnection.iceConnectionState) {
+                    case "closed":
+                    case "failed":
+                        closeVideoCall();
+                        break;
+                }
+            }
+            function handleSignalingStateChangeEvent(event) {
+                switch (peerConnection.signalingState) {
+                    case "closed":
+                        closeVideoCall();
+                        break;
+                }
+            };
+            function closeAudioCall() {
+                peerConnection.ontrack = null;
+                peerConnection.onremovetrack = null;
+                peerConnection.onremovestream = null;
+                peerConnection.onicecandidate = null;
+                peerConnection.oniceconnectionstatechange = null;
+                peerConnection.onsignalingstatechange = null;
+                peerConnection.onicegatheringstatechange = null;
+                peerConnection.onnegotiationneeded = null;
+                peerConnection.close();
+                peerConnection = null;
+                
+                var localAudio = document.getElementById("localAudio");
+                localAudio.srcObject.getTracks().forEach(track => track.stop());
+                var remoteAudio = document.getElementsByClassName('remote-audio');
+                for (var r of remoteAudio) {
+                    r.srcObject.getTracks().forEach(track => track.stop());
+                }
+                preparePeerConnection();
+            }
+            // stop both mic and camera
+            function stopBothVideoAndAudio(stream) {
+                stream.getTracks().forEach(function (track) {
+                    if (track.readyState == 'live') {
+                        track.stop();
+                    }
+                });
+            }
+
+            // stop only camera
+            function stopVideo(stream) {
+                stream.getTracks().forEach(function (track) {
+                    if (track.readyState == 'live' && track.kind === 'video') {
+                        track.stop();
+                    }
+                });
+            }
+
+            // stop only mic
+            function stopAudio(stream) {
+                stream.getTracks().forEach(function (track) {
+                    if (track.readyState == 'live' && track.kind === 'audio') {
+                        track.stop();
+                    }
+                });
+            }
+        </script>
+
+    </body>
+
+</html>
