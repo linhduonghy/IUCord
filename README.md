@@ -1,4 +1,4 @@
-# IUCord - Bài tập lớn Lập Trình Mạng
+# IUCord - Bài tập lớn môn Lập Trình Mạng - Năm học 4 Kỳ 1 - 2020
 Room Chat, Audio
 
 ## Technologies
